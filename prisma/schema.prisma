@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+// 🏢 THE TENANT: LAUNDRY SHOPS
+model LaundryShop {
+  id          String     @id @default(uuid())
+  name        String     
+  phone       String
+  city        String     
+  area        String     
+  latitude    Float?
+  longitude   Float?
+  status      ShopStatus @default(ACTIVE)
+  email       String     @unique
+  password    String
+  
+  employees   Staff[]   
+  orders      Order[]   
+  
+  createdAt   DateTime   @default(now())
+
+}
+
+// 👥 THE SHOP EMPLOYEES
+model Staff {
+  id            String      @id @default(uuid())
+  email         String      @unique
+  password      String
+  name          String
+  role          ShopRole    @default(WASHER)
+  
+  shopId        String
+  shop          LaundryShop @relation(fields: [shopId], references: [id])
+  
+  createdAt     DateTime    @default(now())
+}
+
+// 👤 THE CUSTOMERS
+model Customer {
+  id        String   @id @default(uuid())
+  name      String?
+  email     String   @unique
+  password  String
+  phone     String?
+  orders    Order[]
+  createdAt DateTime @default(now())
+}
+
+// 🛵 THE INDEPENDENT RIDERS / COURIERS
+model Rider {
+  id           String      @id @default(uuid())
+  name         String
+  phone        String      @unique
+  vehicleType  VehicleType @default(BIKE)
+  status       RiderStatus @default(AVAILABLE)
+  orders       Order[]     
+  createdAt    DateTime    @default(now())
+}
+
+// 📦 THE MARKETPLACE ORDERS
+model Order {
+  id                  String      @id @default(uuid())
+  orderCode           String      @unique 
+  pickupAddress       String
+  exactLatitude       Float
+  exactLongitude      Float
+  transportMode       VehicleType
+  estimatedWeightKgs  Float
+  
+  duvets              Int         @default(0)
+  suits               Int         @default(0)
+  shirts              Int         @default(0)
+  specialInstructions String?
+  
+  logisticsFee        Float       
+  cleaningFee         Float       
+  platformCommission  Float       
+  estimatedTotal      Float       
+
+  status              OrderStatus @default(ORDER_PLACED)
+  
+  customerId          String
+  customer            Customer    @relation(fields: [customerId], references: [id])
+  
+  shopId              String?
+  shop                LaundryShop? @relation(fields: [shopId], references: [id])
+  
+  riderId             String?     
+  rider               Rider?      @relation(fields: [riderId], references: [id])
+
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+}
+
+enum ShopStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_APPROVAL
+}
+
+enum ShopRole {
+  SHOP_OWNER
+  MANAGER
+  WASHER
+}
+
+enum VehicleType {
+  BIKE
+  CAR
+}
+
+enum RiderStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+}
+
+enum OrderStatus {
+  ORDER_PLACED         
+  RIDER_ACCEPTED_PICKUP
+  ARRIVED_AT_PICKUP    
+  WEIGHING_CONFIRMED   
+  TRANSIT_TO_SHOP      
+  RECEIVED_BY_SHOP     
+  PROCESSING           
+  READY_FOR_DELIVERY   
+  RIDER_ACCEPTED_DELIVERY
+  OUT_FOR_DELIVERY     
+  COMPLETED            
+  CANCELLED
+}
