@@ -248,8 +248,23 @@ async registerDealer(dto: any) {
 
     const resetUrl = `https://naipickndroplaundrycleaners.velmoragrouphub.com/#/reset-password?userId=${user.id}`;
 
+    // const transporter = nodemailer.createTransport({
+    //   service: 'gmail',
+    //   auth: {
+    //     type: 'OAuth2',
+    //     user: process.env.GMAIL_USER,
+    //     clientId: process.env.GMAIL_CLIENT_ID,
+    //     clientSecret: process.env.GMAIL_CLIENT_SECRET,
+    //     refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+    //   },
+    // });
+
     const transporter = nodemailer.createTransport({
       service: 'gmail',
+      host: 'smtp.gmail.com', // Explicitly specify host
+      port: 465,
+      secure: true,
+      family: 4, // 👈 🎯 FORCES IPv4 (Bypasses Render's broken IPv6 ENETUNREACH)
       auth: {
         type: 'OAuth2',
         user: process.env.GMAIL_USER,
@@ -257,7 +272,11 @@ async registerDealer(dto: any) {
         clientSecret: process.env.GMAIL_CLIENT_SECRET,
         refreshToken: process.env.GMAIL_REFRESH_TOKEN,
       },
-    });
+      connectionTimeout: 10000,
+      socketTimeout: 10000,
+    } as any);
+
+
 
     try {
       await transporter.sendMail({
@@ -355,8 +374,14 @@ private async sendVerificationEmail(userId: string, email: string, name?: string
 
   console.log("Here is the Verify URL ", verifyUrldynamic);
 
+
+
   const transporter = nodemailer.createTransport({
     service: 'gmail',
+    host: 'smtp.gmail.com', // Explicitly specify host
+    port: 465,
+    secure: true,
+    family: 4, // 👈 🎯 FORCES IPv4 (Bypasses Render's broken IPv6 ENETUNREACH)
     auth: {
       type: 'OAuth2',
       user: process.env.GMAIL_USER,
@@ -364,7 +389,22 @@ private async sendVerificationEmail(userId: string, email: string, name?: string
       clientSecret: process.env.GMAIL_CLIENT_SECRET,
       refreshToken: process.env.GMAIL_REFRESH_TOKEN,
     },
-  });
+    connectionTimeout: 10000,
+    socketTimeout: 10000,
+  } as any);
+
+
+  // const transporter = nodemailer.createTransport({
+  //   auth: {
+  //     type: 'OAuth2',
+  //     user: process.env.GMAIL_USER,
+  //     clientId: process.env.GMAIL_CLIENT_ID,
+  //     clientSecret: process.env.GMAIL_CLIENT_SECRET,
+  //     refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+  //   },
+  //   connectionTimeout: 10000,
+  //   socketTimeout: 10000,
+  // });
 
   try {
     const info = await transporter.sendMail({
