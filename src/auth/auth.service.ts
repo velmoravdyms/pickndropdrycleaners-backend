@@ -66,8 +66,8 @@ async registerCustomer(dto: any) {
       console.log('Account created, but failed to send verification email. Please check server credentials.');
      // Development Fallback: Print link directly to terminal so you can test manually!
       console.log(
-        // `🔗 [DEV VERIFICATION LINK]: http://localhost:3000/api/auth/verify?token=${newCustomer.verificationToken}`
-                `🔗 [DEV VERIFICATION LINK]: https://pickndropdrycleaners-backend.onrender.com/api/auth/verify?token=${newCustomer.verificationToken}`
+        //`🔗 [DEV VERIFICATION LINK]: http://localhost:3000/api/auth/verify?token=${newCustomer.verificationToken}`
+        `🔗 [DEV VERIFICATION LINK]: https://pickndropdrycleaners-backend.onrender.com/api/auth/verify?token=${newCustomer.verificationToken}`
 
       );
     }
