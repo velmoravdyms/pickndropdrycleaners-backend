@@ -1,95 +1,140 @@
 
 
-import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException,NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt'; 
+import * as nodemailer from 'nodemailer';
+
+
+
 
 @Injectable()
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async registerCustomer(dto: any) {
-    // 1. Check if email already exists
-    const existingUser = await this.prisma.customer.findUnique({
-      where: { email: dto.email },
-    });
+  
+
+async registerCustomer(dto: any) {
+    let existingUser: any = null;
+
+    // 1. Check if email already exists with error handling for DB timeouts
+    try {
+      existingUser = await this.prisma.customer.findUnique({
+        where: { email: dto.email },
+      });
+    } catch (dbError) {
+      console.error('Database connection error during customer registration:', dbError);
+      throw new BadRequestException('Database connection timed out. Please try again.');
+    }
+
     if (existingUser) {
       throw new BadRequestException('Email is already registered');
     }
 
-    // 2. Create the new customer row (Passing a placeholder for name)
-    const newCustomer = await this.prisma.customer.create({
-      data: {
-        name: "Valued Customer", // 👈 Default fallback placeholder string
-        email: dto.email,
-        phone: dto.phone,
-        password: dto.password, 
-      },
-    });
+    // 🎯 Extract name from email prefix (e.g., "john.doe" from "john.doe@gmail.com")
+    const fallbackName = dto.email ? dto.email.split('@')[0] : 'Valued Customer';
+    const customerName = dto.name || fallbackName;
 
+    // 2. Create the new customer row safely
+    let newCustomer: any = null;
+    try {
+      newCustomer = await this.prisma.customer.create({
+        data: {
+          name: customerName, 
+          email: dto.email,
+          phone: dto.phone,
+          password: dto.password, 
+          isEmailVerified: false,
+        },
+      });
+    } catch (createError) {
+      console.error('Error creating customer record:', createError);
+      throw new BadRequestException('Failed to create account. Please try again.');
+    }
+
+    console.log('NEW CUSTOMER ENTITY:', newCustomer);
+
+    // 3. Dispatch verification email & catch email dispatch errors
+    try {
+      await this.sendVerificationEmail(
+        newCustomer.id,
+        newCustomer.email,
+        newCustomer.name ?? fallbackName,
+      );
+    } catch (emailErr) {
+      console.error('FAILED TO SEND VERIFICATION EMAIL:', emailErr);
+      console.log('Account created, but failed to send verification email. Please check server credentials.');
+     // Development Fallback: Print link directly to terminal so you can test manually!
+      console.log(
+        `🔗 [DEV VERIFICATION LINK]: http://localhost:3000/api/auth/verify?token=${newCustomer.verificationToken}`
+      );
+    }
+
+
+
+
+
+
+
+
+
+
+    // 4. Return success response
     return {
       success: true,
-      message: 'Customer registered successfully',
+      message: 'Registration successful! Please check your email to verify your account.',
       id: newCustomer.id,
     };
   }
 
-  // async login(dto: any) {
-  //   // Look for customer matching email
-  //   const customer = await this.prisma.customer.findUnique({
-  //     where: { email: dto.email },
-  //   });
-
-  //   if (!customer || customer.password !== dto.password) {
-  //     throw new UnauthorizedException('Invalid email or password');
-  //   }
-
-  //   // Return exact payload fields matching what Flutter SharedPreferences expects
-  //   return {
-  //     access_token: `mock-jwt-token-for-${customer.id}`,
-  //     id: customer.id,
-  //     name: customer.name,
-  //     email: customer.email, // 👈 Added this line so your UI drawer can pull the email instantly!
-  //     role: 'CUSTOMER',
-  //   };
-  // }
 
 
   async login(dto: any) {
-    // 1. First, check if the email belongs to a customer
-    let userEntity: any = await this.prisma.customer.findUnique({
-      where: { email: dto.email },
-    });
+    let userEntity: any = null;
     let userRole = 'CUSTOMER';
 
-    // 2. If no customer is found, check the laundryShop (Dealer) table
-    if (!userEntity) {
-      userEntity = await this.prisma.laundryShop.findUnique({
+    // 1. Fetch user entity safely with error handling for DB timeouts
+    try {
+      userEntity = await this.prisma.customer.findUnique({
         where: { email: dto.email },
       });
-      userRole = 'DEALER';
+
+      if (!userEntity) {
+        userEntity = await this.prisma.laundryShop.findUnique({
+          where: { email: dto.email },
+        });
+        userRole = 'DEALER';
+      }
+    } catch (dbError) {
+      console.error('Database connection error during login:', dbError);
+      throw new BadRequestException('Database connection timed out. Please try again.');
     }
 
-    // 3. If it doesn't exist anywhere, drop out early
+    // 2. Account Existence Check
     if (!userEntity) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // 4. Validate the password appropriately based on the account type
-    // Note: Customer currently saves plain text passwords, but registerDealer hashes them with bcrypt!
+    // 3. Password Check (BCrypt for Dealers, Plaintext/BCrypt for Customers)
     if (userRole === 'DEALER') {
       const passwordMatch = await bcrypt.compare(dto.password, userEntity.password);
       if (!passwordMatch) {
         throw new UnauthorizedException('Invalid email or password');
       }
     } else {
-      // Direct text fallback matching for your existing customer setup
       if (userEntity.password !== dto.password) {
         throw new UnauthorizedException('Invalid email or password');
       }
     }
 
-    // 5. Return the exact structure Flutter expects for both roles
+    // 4. Verification Check (Only executed IF email & password match)
+    if (userEntity.isEmailVerified === false) {
+      throw new UnauthorizedException(
+        'Please verify your email address before logging in. Check your inbox for the verification link.',
+      );
+    }
+
+    // 5. Auth Payload Return
     return {
       success: true,
       message: 'Logged in successfully',
@@ -97,7 +142,7 @@ export class AuthService {
       id: userEntity.id,
       name: userEntity.name,
       email: userEntity.email,
-      role: userRole, // 🎯 Will correctly dynamic-pass 'CUSTOMER' or 'DEALER'
+      role: userRole,
     };
   }
 
@@ -112,39 +157,273 @@ export class AuthService {
     });
   }
 
-  async registerDealer(dto: any) {
-  // 1. Check if the business email is already taken
-  const existingShop = await this.prisma.laundryShop.findUnique({
-    where: { email: dto.email }
-  });
-  
-  if (existingShop) {
-    throw new BadRequestException('This business email is already registered.');
+
+
+
+async registerDealer(dto: any) {
+    let existingShop: any = null;
+
+    // 1. Check if the business email is already taken
+    try {
+      existingShop = await this.prisma.laundryShop.findUnique({
+        where: { email: dto.email },
+      });
+    } catch (dbError) {
+      console.error('Database connection error during dealer registration:', dbError);
+      throw new BadRequestException('Database connection timed out. Please try again.');
+    }
+
+    if (existingShop) {
+      throw new BadRequestException('This business email is already registered.');
+    }
+
+    const fallbackName = dto.email ? dto.email.split('@')[0] : 'Laundry Shop';
+    const shopName = dto.dealerName || fallbackName;
+
+    // 2. Hash the password before saving
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+    // 3. Create the new laundry shop record
+    let newShop: any = null;
+    try {
+      newShop = await this.prisma.laundryShop.create({
+        data: {
+          name: shopName,
+          city: dto.city,
+          phone: dto.phone,
+          email: dto.email,
+          password: hashedPassword,
+          area: dto.area || 'Nairobi Central',
+          isEmailVerified: false,
+        },
+      });
+    } catch (createError) {
+      console.error('Error creating laundry shop record:', createError);
+      throw new BadRequestException('Failed to register business. Please try again.');
+    }
+
+    // 4. Dispatch verification email
+    try {
+      await this.sendVerificationEmail(
+        newShop.id, 
+        newShop.email, 
+        newShop.name ?? fallbackName
+      );
+    } catch (emailErr) {
+      console.error('FAILED TO SEND VERIFICATION EMAIL:', emailErr);
+      throw new BadRequestException('Account created, but failed to send verification email. Please check server credentials.');
+    }
+
+    // 5. Return success response
+    return {
+      success: true,
+      message: 'Laundrymart registered successfully! Please check your email to verify.',
+      id: newShop.id,
+    };
   }
+  
+  // 3️⃣ FORGOT PASSWORD (Find User & Send Email)
+  async forgotPassword(email: string) {
+    if (!email) {
+      throw new BadRequestException('Email address is required');
+    }
 
-  // 2. Hash the password before saving for security (assuming you use bcrypt)
-  const hashedPassword = await bcrypt.hash(dto.password, 10);
+    let user: any = null;
 
-  // 3. Create the new laundry shop record in your PostgreSQL database
-  const newShop = await this.prisma.laundryShop.create({
-      data: {
-        name: dto.dealerName,
-        city: dto.city,
-        phone: dto.phone,
-        email: dto.email,
-        password: hashedPassword,
-        area: dto.area || 'Nairobi Central', // Fallback for mandatory field
+    try {
+      user = await this.prisma.customer.findUnique({ where: { email } });
+      if (!user) {
+        user = await this.prisma.laundryShop.findUnique({ where: { email } });
+      }
+    } catch (dbError) {
+      console.error('Database Query Error:', dbError);
+      throw new BadRequestException('Database error. Please try again.');
+    }
+
+    if (!user) {
+      throw new NotFoundException('No account registered with this email address.');
+    }
+
+    const resetUrl = `https://naipickndroplaundrycleaners.velmoragrouphub.com/#/reset-password?userId=${user.id}`;
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        type: 'OAuth2',
+        user: process.env.GMAIL_USER,
+        clientId: process.env.GMAIL_CLIENT_ID,
+        clientSecret: process.env.GMAIL_CLIENT_SECRET,
+        refreshToken: process.env.GMAIL_REFRESH_TOKEN,
       },
     });
 
-    return {
-      success: true,
-      message: 'Laundrymart registered successfully',
-      id: newShop.id,
-    };
-    
+    try {
+      await transporter.sendMail({
+        from: `"NaipickNdroplaundrycleaners" <${process.env.GMAIL_USER}>`,
+        to: email,
+        subject: '🔑 Reset Your Password - NaiPick & Drop',
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 500px; margin: auto; border: 1px solid #eee; border-radius: 10px;">
+            <h2 style="color: #99326c; text-align: center;">Pick & Drop Laundry</h2>
+            <hr style="border: none; border-top: 1px solid #eee;" />
+            <p>Hello <b>${user.name || 'Valued Customer'}</b>,</p>
+            <p>We received a request to reset your password for your Pick & Drop Laundry account.</p>
+            <p>Click the button below to reset your password:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetUrl}" style="background-color: #99326c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Reset Password</a>
+            </div>
+            <p style="font-size: 12px; color: #777;">If you did not request a password reset, you can safely ignore this email.</p>
+          </div>
+        `,
+      });
 
-  
+      return {
+        success: true,
+        message: 'Password reset instructions have been sent to your email.',
+      };
+    } catch (mailError) {
+      console.error('Nodemailer / OAuth2 Error:', mailError);
+      throw new BadRequestException('Failed to dispatch email. Please check server credentials.');
+    }
   }
 
+  // 4️⃣ RESET PASSWORD (Update Password in DB)
+  async resetPassword(dto: { userId: string; newPassword: string }) {
+    const { userId, newPassword } = dto;
+
+    if (!userId || !newPassword) {
+      throw new BadRequestException('User ID and new password are required');
+    }
+
+    if (newPassword.length < 6) {
+      throw new BadRequestException('Password must be at least 6 characters long');
+    }
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: userId },
+    });
+
+    if (customer) {
+      await this.prisma.customer.update({
+        where: { id: userId },
+        data: { password: newPassword },
+      });
+
+      return {
+        success: true,
+        message: 'Customer password updated successfully',
+      };
+    }
+
+    const shop = await this.prisma.laundryShop.findUnique({
+      where: { id: userId },
+    });
+
+    if (shop) {
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      await this.prisma.laundryShop.update({
+        where: { id: userId },
+        data: { password: hashedPassword },
+      });
+
+      return {
+        success: true,
+        message: 'Laundry shop password updated successfully',
+      };
+    }
+
+    throw new NotFoundException('Account not found or invalid user ID');
+  }
+
+
+
+
+
+
+// 1️⃣ SEND VERIFICATION EMAIL HELPER (Matched to working forgotPassword structure)
+private async sendVerificationEmail(userId: string, email: string, name?: string) {
+  // const verifyUrl = `https://naipickndroplaundrycleaners.velmoragrouphub.com/#/verify-email?userId=${userId}`;
+  // Replace the Flutter URL with your backend API URL
+  const verifyUrldynamic = `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/auth/verify-email?userId=${userId}`;
+
+  const verifyUrl = `http://localhost:3000/api/auth/verify-email?userId=${userId}`;
+
+  console.log("Here is the Verify URL ", verifyUrldynamic);
+
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      type: 'OAuth2',
+      user: process.env.GMAIL_USER,
+      clientId: process.env.GMAIL_CLIENT_ID,
+      clientSecret: process.env.GMAIL_CLIENT_SECRET,
+      refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+    },
+  });
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"NaipickNdroplaundrycleaners" <${process.env.GMAIL_USER}>`,
+      to: email,
+      subject: '✉️ Verify Your Email - NaiPick & Drop',
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 500px; margin: auto; border: 1px solid #eee; border-radius: 10px;">
+          <h2 style="color: #99326c; text-align: center;">Pick & Drop Laundry</h2>
+          <hr style="border: none; border-top: 1px solid #eee;" />
+          <p>Hello <b>${name || 'Valued Customer'}</b>,</p>
+          <p>Thank you for signing up! Please confirm your email address to activate your account.</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verifyUrl}" style="background-color: #99326c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Verify Email Address</a>
+          </div>
+        </div>
+      `,
+    });
+
+    console.log(`✅ Verification email dispatched successfully to ${email} (Message ID: ${info.messageId})`);
+    return info;
+  } catch (mailError) {
+    // 🚨 Log the exact error just like forgotPassword does so terminal isn't silent!
+    console.error('Nodemailer / OAuth2 Verification Email Error:', mailError);
+    throw new BadRequestException('Failed to dispatch verification email. Please check server credentials.');
+  }
 }
+
+
+
+
+
+
+// 2️⃣ VERIFY EMAIL METHOD
+async verifyEmail(userId: string) {
+  if (!userId) throw new BadRequestException('User ID is required');
+
+  const customer = await this.prisma.customer.findUnique({ where: { id: userId } });
+  if (customer) {
+    await this.prisma.customer.update({
+      where: { id: userId },
+      data: { isEmailVerified: true },
+    });
+    return { success: true, message: 'Customer email verified successfully' };
+  }
+
+  const shop = await this.prisma.laundryShop.findUnique({ where: { id: userId } });
+  if (shop) {
+    await this.prisma.laundryShop.update({
+      where: { id: userId },
+      data: { isEmailVerified: true },
+    });
+    return { success: true, message: 'Laundry shop email verified successfully' };
+  }
+
+  throw new NotFoundException('User not found');
+}
+
+
+
+
+
+}
+
+
+

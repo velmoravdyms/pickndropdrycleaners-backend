@@ -19,6 +19,7 @@ model LaundryShop {
   status      ShopStatus @default(ACTIVE)
   email       String     @unique
   password    String
+  isEmailVerified Boolean  @default(false) // 👈 ADD THIS
   
   employees   Staff[]   
   orders      Order[]   
@@ -50,6 +51,7 @@ model Customer {
   phone     String?
   orders    Order[]
   createdAt DateTime @default(now())
+  isEmailVerified Boolean  @default(false) // 👈 ADD THIS
 }
 
 // 🛵 THE INDEPENDENT RIDERS / COURIERS
