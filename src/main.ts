@@ -1,6 +1,11 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
+import { setDefaultResultOrder } from 'node:dns';
+
+// 🎯 FORCE NODE TO USE IPv4 FIRST (Fixes Render IPv6 ENETUNREACH on Gmail/OAuth2)
+setDefaultResultOrder('ipv4first');
+
 // 🔌 Explicitly target the root directory .env file, bypassing the 'dist/' folder mixup!
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
