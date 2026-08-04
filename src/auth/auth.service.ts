@@ -66,7 +66,9 @@ async registerCustomer(dto: any) {
       console.log('Account created, but failed to send verification email. Please check server credentials.');
      // Development Fallback: Print link directly to terminal so you can test manually!
       console.log(
-        `🔗 [DEV VERIFICATION LINK]: http://localhost:3000/api/auth/verify?token=${newCustomer.verificationToken}`
+        // `🔗 [DEV VERIFICATION LINK]: http://localhost:3000/api/auth/verify?token=${newCustomer.verificationToken}`
+                `🔗 [DEV VERIFICATION LINK]: https://pickndropdrycleaners-backend.onrender.com/api/auth/verify?token=${newCustomer.verificationToken}`
+
       );
     }
 
@@ -347,7 +349,9 @@ private async sendVerificationEmail(userId: string, email: string, name?: string
   // Replace the Flutter URL with your backend API URL
   const verifyUrldynamic = `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/auth/verify-email?userId=${userId}`;
 
-  const verifyUrl = `http://localhost:3000/api/auth/verify-email?userId=${userId}`;
+  // const verifyUrl = `http://localhost:3000/api/auth/verify-email?userId=${userId}`;
+  const verifyUrl = `https://pickndropdrycleaners-backend.onrender.com/api/auth/verify-email?userId=${userId}`;
+  
 
   console.log("Here is the Verify URL ", verifyUrldynamic);
 
