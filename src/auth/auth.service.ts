@@ -5,9 +5,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt'; 
 import * as nodemailer from 'nodemailer';
 
-
-
-
 @Injectable()
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
@@ -71,14 +68,6 @@ async registerCustomer(dto: any) {
 
       );
     }
-
-
-
-
-
-
-
-
 
 
     // 4. Return success response
@@ -248,19 +237,8 @@ async registerDealer(dto: any) {
 
     const resetUrl = `https://naipickndroplaundrycleaners.velmoragrouphub.com/#/reset-password?userId=${user.id}`;
 
-    // const transporter = nodemailer.createTransport({
-    //   service: 'gmail',
-    //   auth: {
-    //     type: 'OAuth2',
-    //     user: process.env.GMAIL_USER,
-    //     clientId: process.env.GMAIL_CLIENT_ID,
-    //     clientSecret: process.env.GMAIL_CLIENT_SECRET,
-    //     refreshToken: process.env.GMAIL_REFRESH_TOKEN,
-    //   },
-    // });
 
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
       host: 'smtp.gmail.com', // Explicitly specify host
       port: 465,
       secure: true,
@@ -374,10 +352,15 @@ private async sendVerificationEmail(userId: string, email: string, name?: string
 
   console.log("Here is the Verify URL ", verifyUrldynamic);
 
+  console.log(`Here are the deatils to use "      
+      \nuser: ${process.env.GMAIL_USER},
+      \nclientId: ${process.env.GMAIL_CLIENT_ID},
+      \nclientSecret: ${process.env.GMAIL_CLIENT_SECRET},
+      \nrefreshToken: ${process.env.GMAIL_REFRESH_TOKEN},"
+    `)
 
 
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
     host: 'smtp.gmail.com', // Explicitly specify host
     port: 465,
     secure: true,
@@ -394,17 +377,6 @@ private async sendVerificationEmail(userId: string, email: string, name?: string
   } as any);
 
 
-  // const transporter = nodemailer.createTransport({
-  //   auth: {
-  //     type: 'OAuth2',
-  //     user: process.env.GMAIL_USER,
-  //     clientId: process.env.GMAIL_CLIENT_ID,
-  //     clientSecret: process.env.GMAIL_CLIENT_SECRET,
-  //     refreshToken: process.env.GMAIL_REFRESH_TOKEN,
-  //   },
-  //   connectionTimeout: 10000,
-  //   socketTimeout: 10000,
-  // });
 
   try {
     const info = await transporter.sendMail({
