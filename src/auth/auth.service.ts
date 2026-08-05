@@ -368,13 +368,16 @@ private async sendVerificationEmail(userId: string, email: string, name?: string
 
 
   const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com', // Explicitly specify host
-    // port: 465,
-    // secure: true,
-    port: 587,             // 👈 Switch from 465 to 587
-  secure: false,          // 👈 Set to false for STARTTLS (port 587)
-  requireTLS: true,       // 👈 Upgrade connection securely via STARTTLS
-    family: 4, // 👈 🎯 FORCES IPv4 (Bypasses Render's broken IPv6 ENETUNREACH)
+    service: 'gmail', // 👈 Simplifies host, port, and secure options
+    
+
+    lookup: (
+      hostname: string,
+      options: dns.LookupOptions,
+      callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void
+      ) => {
+      dns.lookup(hostname, { family: 4 }, callback);
+    },
     auth: {
       type: 'OAuth2',
       user: process.env.GMAIL_USER,
