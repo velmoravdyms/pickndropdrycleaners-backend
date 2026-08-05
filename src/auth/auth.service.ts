@@ -244,8 +244,11 @@ async registerDealer(dto: any) {
 
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com', // Explicitly specify host
-      port: 465,
-      secure: true,
+      port: 587,             // 👈 Switch from 465 to 587
+  secure: false,          // 👈 Set to false for STARTTLS (port 587)
+  requireTLS: true,       // 👈 Upgrade connection securely via STARTTLS
+      // port: 465,
+      // secure: true,
       family: 4, // 👈 🎯 FORCES IPv4 (Bypasses Render's broken IPv6 ENETUNREACH)
       auth: {
         type: 'OAuth2',
@@ -366,8 +369,11 @@ private async sendVerificationEmail(userId: string, email: string, name?: string
 
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com', // Explicitly specify host
-    port: 465,
-    secure: true,
+    // port: 465,
+    // secure: true,
+    port: 587,             // 👈 Switch from 465 to 587
+  secure: false,          // 👈 Set to false for STARTTLS (port 587)
+  requireTLS: true,       // 👈 Upgrade connection securely via STARTTLS
     family: 4, // 👈 🎯 FORCES IPv4 (Bypasses Render's broken IPv6 ENETUNREACH)
     auth: {
       type: 'OAuth2',
