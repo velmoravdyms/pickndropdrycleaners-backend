@@ -5,6 +5,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt'; 
 import * as nodemailer from 'nodemailer';
 
+
+import dns from 'node:dns';// Force Node to prioritize IPv4 over IPv6 globally
+dns.setDefaultResultOrder('ipv4first'); 
+
 @Injectable()
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
@@ -374,7 +378,10 @@ private async sendVerificationEmail(userId: string, email: string, name?: string
     },
     connectionTimeout: 10000,
     socketTimeout: 10000,
-  } as any);
+  // } as any);
+
+
+   } as nodemailer.TransportOptions);
 
 
 
