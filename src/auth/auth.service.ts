@@ -5,9 +5,23 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt'; 
 import * as nodemailer from 'nodemailer';
 
-
 import dns from 'node:dns';// Force Node to prioritize IPv4 over IPv6 globally
 dns.setDefaultResultOrder('ipv4first'); 
+
+
+
+
+
+
+// 1️⃣ Custom IPv4 Lookup Handler (Placed outside or as a private helper)
+const ipv4Lookup = (
+  hostname: string,
+  options: dns.LookupOptions,
+  callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
+) => {
+  dns.lookup(hostname, { family: 4 }, callback);
+};
+
 
 @Injectable()
 export class AuthService {
@@ -347,37 +361,100 @@ async registerDealer(dto: any) {
 
 
 
-// 1️⃣ SEND VERIFICATION EMAIL HELPER (Matched to working forgotPassword structure)
-private async sendVerificationEmail(userId: string, email: string, name?: string) {
-  // const verifyUrl = `https://naipickndroplaundrycleaners.velmoragrouphub.com/#/verify-email?userId=${userId}`;
-  // Replace the Flutter URL with your backend API URL
-  const verifyUrldynamic = `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/auth/verify-email?userId=${userId}`;
+// // 1️⃣ SEND VERIFICATION EMAIL HELPER (Matched to working forgotPassword structure)
+// private async sendVerificationEmail(userId: string, email: string, name?: string) {
+//   // const verifyUrl = `https://naipickndroplaundrycleaners.velmoragrouphub.com/#/verify-email?userId=${userId}`;
+//   // Replace the Flutter URL with your backend API URL
+//   const verifyUrldynamic = `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/auth/verify-email?userId=${userId}`;
 
-  // const verifyUrl = `http://localhost:3000/api/auth/verify-email?userId=${userId}`;
-  const verifyUrl = `https://pickndropdrycleaners-backend.onrender.com/api/auth/verify-email?userId=${userId}`;
+//   // const verifyUrl = `http://localhost:3000/api/auth/verify-email?userId=${userId}`;
+//   const verifyUrl = `https://pickndropdrycleaners-backend.onrender.com/api/auth/verify-email?userId=${userId}`;
   
 
-  console.log("Here is the Verify URL ", verifyUrldynamic);
+//   console.log("Here is the Verify URL ", verifyUrldynamic);
 
-  console.log(`Here are the deatils to use "      
-      \nuser: ${process.env.GMAIL_USER},
-      \nclientId: ${process.env.GMAIL_CLIENT_ID},
-      \nclientSecret: ${process.env.GMAIL_CLIENT_SECRET},
-      \nrefreshToken: ${process.env.GMAIL_REFRESH_TOKEN},"
-    `)
+//   console.log(`Here are the deatils to use "      
+//       \nuser: ${process.env.GMAIL_USER},
+//       \nclientId: ${process.env.GMAIL_CLIENT_ID},
+//       \nclientSecret: ${process.env.GMAIL_CLIENT_SECRET},
+//       \nrefreshToken: ${process.env.GMAIL_REFRESH_TOKEN},"
+//     `)
 
 
-  const transporter = nodemailer.createTransport({
-    service: 'gmail', // 👈 Simplifies host, port, and secure options
+//   const transporter = nodemailer.createTransport({
+//     service: 'gmail', // 👈 Simplifies host, port, and secure options
     
 
-    lookup: (
-      hostname: string,
-      options: dns.LookupOptions,
-      callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void
-      ) => {
-      dns.lookup(hostname, { family: 4 }, callback);
-    },
+//     lookup: (
+//       hostname: string,
+//       options: dns.LookupOptions,
+//       callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void
+//       ) => {
+//       dns.lookup(hostname, { family: 4 }, callback);
+//     },
+//     auth: {
+//       type: 'OAuth2',
+//       user: process.env.GMAIL_USER,
+//       clientId: process.env.GMAIL_CLIENT_ID,
+//       clientSecret: process.env.GMAIL_CLIENT_SECRET,
+//       refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+//     },
+//     connectionTimeout: 10000,
+//     socketTimeout: 10000,
+//   // } as any);
+
+
+//    } as nodemailer.TransportOptions);
+
+
+
+//   try {
+//     const info = await transporter.sendMail({
+//       from: `"NaipickNdroplaundrycleaners" <${process.env.GMAIL_USER}>`,
+//       to: email,
+//       subject: '✉️ Verify Your Email - NaiPick & Drop',
+//       html: `
+//         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 500px; margin: auto; border: 1px solid #eee; border-radius: 10px;">
+//           <h2 style="color: #99326c; text-align: center;">Pick & Drop Laundry</h2>
+//           <hr style="border: none; border-top: 1px solid #eee;" />
+//           <p>Hello <b>${name || 'Valued Customer'}</b>,</p>
+//           <p>Thank you for signing up! Please confirm your email address to activate your account.</p>
+//           <div style="text-align: center; margin: 30px 0;">
+//             <a href="${verifyUrl}" style="background-color: #99326c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Verify Email Address</a>
+//           </div>
+//         </div>
+//       `,
+//     });
+
+//     console.log(`✅ Verification email dispatched successfully to ${email} (Message ID: ${info.messageId})`);
+//     return info;
+//   } catch (mailError) {
+//     // 🚨 Log the exact error just like forgotPassword does so terminal isn't silent!
+//     console.error('Nodemailer / OAuth2 Verification Email Error:', mailError);
+//     throw new BadRequestException('Failed to dispatch verification email. Please check server credentials.');
+//   }
+// }
+
+
+
+
+
+
+// ... inside AuthService class ...
+
+// 2️⃣ SEND VERIFICATION EMAIL HELPER
+private async sendVerificationEmail(userId: string, email: string, name?: string) {
+  // Dynamically resolve base URL based on environment (defaults to production if set, or local dev)
+  const baseUrl = process.env.BACKEND_URL || 'https://pickndropdrycleaners-backend.onrender.com';
+  const verifyUrl = `${baseUrl}/api/auth/verify-email?userId=${userId}`;
+
+  console.log('🔗 Generated Verification URL:', verifyUrl);
+  console.log(`📧 Dispatching OAuth2 Email via ${process.env.GMAIL_USER}`);
+
+  // Configure Nodemailer with IPv4 force override to fix Render ENETUNREACH errors
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    lookup: ipv4Lookup,
     auth: {
       type: 'OAuth2',
       user: process.env.GMAIL_USER,
@@ -385,18 +462,13 @@ private async sendVerificationEmail(userId: string, email: string, name?: string
       clientSecret: process.env.GMAIL_CLIENT_SECRET,
       refreshToken: process.env.GMAIL_REFRESH_TOKEN,
     },
-    connectionTimeout: 10000,
-    socketTimeout: 10000,
-  // } as any);
-
-
-   } as nodemailer.TransportOptions);
-
-
+    connectionTimeout: 15000,
+    socketTimeout: 15000,
+  } as nodemailer.TransportOptions);
 
   try {
     const info = await transporter.sendMail({
-      from: `"NaipickNdroplaundrycleaners" <${process.env.GMAIL_USER}>`,
+      from: `"NaiPick & Drop Laundry" <${process.env.GMAIL_USER}>`,
       to: email,
       subject: '✉️ Verify Your Email - NaiPick & Drop',
       html: `
@@ -415,14 +487,10 @@ private async sendVerificationEmail(userId: string, email: string, name?: string
     console.log(`✅ Verification email dispatched successfully to ${email} (Message ID: ${info.messageId})`);
     return info;
   } catch (mailError) {
-    // 🚨 Log the exact error just like forgotPassword does so terminal isn't silent!
-    console.error('Nodemailer / OAuth2 Verification Email Error:', mailError);
+    console.error('🚨 Nodemailer / OAuth2 Verification Email Error:', mailError);
     throw new BadRequestException('Failed to dispatch verification email. Please check server credentials.');
   }
 }
-
-
-
 
 
 
