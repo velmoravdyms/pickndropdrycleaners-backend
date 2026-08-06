@@ -14,19 +14,6 @@ dns.setDefaultResultOrder('ipv4first');
 
 
 
-
-
-
-// 1️⃣ Custom IPv4 Lookup Handler (Placed outside or as a private helper)
-const ipv4Lookup = (
-  hostname: string,
-  options: dns.LookupOptions,
-  callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
-) => {
-  dns.lookup(hostname, { family: 4 }, callback);
-};
-
-
 @Injectable()
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
@@ -235,7 +222,87 @@ async registerDealer(dto: any) {
     };
   }
   
-  // 3️⃣ FORGOT PASSWORD (Find User & Send Email)
+  // // 3️⃣ FORGOT PASSWORD (Find User & Send Email)
+  // async forgotPassword(email: string) {
+  //   if (!email) {
+  //     throw new BadRequestException('Email address is required');
+  //   }
+
+  //   let user: any = null;
+
+  //   try {
+  //     user = await this.prisma.customer.findUnique({ where: { email } });
+  //     if (!user) {
+  //       user = await this.prisma.laundryShop.findUnique({ where: { email } });
+  //     }
+  //   } catch (dbError) {
+  //     console.error('Database Query Error:', dbError);
+  //     throw new BadRequestException('Database error. Please try again.');
+  //   }
+
+  //   if (!user) {
+  //     throw new NotFoundException('No account registered with this email address.');
+  //   }
+
+  //   const resetUrl = `https://naipickndroplaundrycleaners.velmoragrouphub.com/#/reset-password?userId=${user.id}`;
+
+
+  //   const transporter = nodemailer.createTransport({
+  //     host: 'smtp.gmail.com', // Explicitly specify host
+  //     port: 587,             // 👈 Switch from 465 to 587
+  // secure: false,          // 👈 Set to false for STARTTLS (port 587)
+  // requireTLS: true,       // 👈 Upgrade connection securely via STARTTLS
+  //     // port: 465,
+  //     // secure: true,
+  //     family: 4, // 👈 🎯 FORCES IPv4 (Bypasses Render's broken IPv6 ENETUNREACH)
+  //     auth: {
+  //       type: 'OAuth2',
+  //       user: process.env.GMAIL_USER,
+  //       clientId: process.env.GMAIL_CLIENT_ID,
+  //       clientSecret: process.env.GMAIL_CLIENT_SECRET,
+  //       refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+  //     },
+  //     connectionTimeout: 10000,
+  //     socketTimeout: 10000,
+  //   } as any);
+
+
+
+  //   try {
+  //     await transporter.sendMail({
+  //       from: `"NaipickNdroplaundrycleaners" <${process.env.GMAIL_USER}>`,
+  //       to: email,
+  //       subject: '🔑 Reset Your Password - NaiPick & Drop',
+  //       html: `
+  //         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 500px; margin: auto; border: 1px solid #eee; border-radius: 10px;">
+  //           <h2 style="color: #99326c; text-align: center;">Pick & Drop Laundry</h2>
+  //           <hr style="border: none; border-top: 1px solid #eee;" />
+  //           <p>Hello <b>${user.name || 'Valued Customer'}</b>,</p>
+  //           <p>We received a request to reset your password for your Pick & Drop Laundry account.</p>
+  //           <p>Click the button below to reset your password:</p>
+  //           <div style="text-align: center; margin: 30px 0;">
+  //             <a href="${resetUrl}" style="background-color: #99326c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Reset Password</a>
+  //           </div>
+  //           <p style="font-size: 12px; color: #777;">If you did not request a password reset, you can safely ignore this email.</p>
+  //         </div>
+  //       `,
+  //     });
+
+  //     return {
+  //       success: true,
+  //       message: 'Password reset instructions have been sent to your email.',
+  //     };
+  //   } catch (mailError) {
+  //     console.error('Nodemailer / OAuth2 Error:', mailError);
+  //     throw new BadRequestException('Failed to dispatch email. Please check server credentials.');
+  //   }
+  // }
+
+
+
+  // ... inside AuthService ...
+
+  // 3️⃣ FORGOT PASSWORD (Find User & Send Email via Gmail REST API)
   async forgotPassword(email: string) {
     if (!email) {
       throw new BadRequestException('Email address is required');
@@ -259,57 +326,90 @@ async registerDealer(dto: any) {
 
     const resetUrl = `https://naipickndroplaundrycleaners.velmoragrouphub.com/#/reset-password?userId=${user.id}`;
 
-
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com', // Explicitly specify host
-      port: 587,             // 👈 Switch from 465 to 587
-  secure: false,          // 👈 Set to false for STARTTLS (port 587)
-  requireTLS: true,       // 👈 Upgrade connection securely via STARTTLS
-      // port: 465,
-      // secure: true,
-      family: 4, // 👈 🎯 FORCES IPv4 (Bypasses Render's broken IPv6 ENETUNREACH)
-      auth: {
-        type: 'OAuth2',
-        user: process.env.GMAIL_USER,
-        clientId: process.env.GMAIL_CLIENT_ID,
-        clientSecret: process.env.GMAIL_CLIENT_SECRET,
-        refreshToken: process.env.GMAIL_REFRESH_TOKEN,
-      },
-      connectionTimeout: 10000,
-      socketTimeout: 10000,
-    } as any);
-
-
-
     try {
-      await transporter.sendMail({
-        from: `"NaipickNdroplaundrycleaners" <${process.env.GMAIL_USER}>`,
-        to: email,
-        subject: '🔑 Reset Your Password - NaiPick & Drop',
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 500px; margin: auto; border: 1px solid #eee; border-radius: 10px;">
-            <h2 style="color: #99326c; text-align: center;">Pick & Drop Laundry</h2>
-            <hr style="border: none; border-top: 1px solid #eee;" />
-            <p>Hello <b>${user.name || 'Valued Customer'}</b>,</p>
-            <p>We received a request to reset your password for your Pick & Drop Laundry account.</p>
-            <p>Click the button below to reset your password:</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetUrl}" style="background-color: #99326c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Reset Password</a>
-            </div>
-            <p style="font-size: 12px; color: #777;">If you did not request a password reset, you can safely ignore this email.</p>
-          </div>
-        `,
+      // 1. Initialize Google OAuth2 Client
+      const oauth2Client = new OAuth2Client(
+        process.env.GMAIL_CLIENT_ID,
+        process.env.GMAIL_CLIENT_SECRET,
+      );
+
+      oauth2Client.setCredentials({
+        refresh_token: process.env.GMAIL_REFRESH_TOKEN,
       });
 
-      return {
-        success: true,
-        message: 'Password reset instructions have been sent to your email.',
-      };
-    } catch (mailError) {
-      console.error('Nodemailer / OAuth2 Error:', mailError);
+      // 2. Fetch fresh access token via HTTPS (Port 443)
+      const { token } = await oauth2Client.getAccessToken();
+      if (!token) {
+        throw new Error('Failed to retrieve OAuth2 access token from Google.');
+      }
+
+      // 3. Construct raw RFC 2822 email message
+      const subject = '🔑 Reset Your Password - NaiPick & Drop';
+      const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
+
+      const messageParts = [
+        `To: ${email}`,
+        `From: NaiPick & Drop Laundry <${process.env.GMAIL_USER}>`,
+        `Subject: ${utf8Subject}`,
+        'Content-Type: text/html; charset=utf-8',
+        'MIME-Version: 1.0',
+        '',
+        `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 500px; margin: auto; border: 1px solid #eee; border-radius: 10px;">
+          <h2 style="color: #99326c; text-align: center;">Pick & Drop Laundry</h2>
+          <hr style="border: none; border-top: 1px solid #eee;" />
+          <p>Hello <b>${user.name || 'Valued Customer'}</b>,</p>
+          <p>We received a request to reset your password for your Pick & Drop Laundry account.</p>
+          <p>Click the button below to reset your password:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetUrl}" style="background-color: #99326c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Reset Password</a>
+          </div>
+          <p style="font-size: 12px; color: #777;">If you did not request a password reset, you can safely ignore this email.</p>
+        </div>
+        `,
+      ];
+
+      const message = messageParts.join('\n');
+
+      // Base64Url encode the message (RFC 4648 format for Gmail API)
+      const encodedMessage = Buffer.from(message)
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+      // 4. Send email via HTTPS POST (Port 443)
+      const response = await fetch(
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ raw: encodedMessage }),
+        },
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`✅ Password reset email sent via Gmail API! (ID: ${result.id})`);
+        return {
+          success: true,
+          message: 'Password reset instructions have been sent to your email.',
+        };
+      } else {
+        const errorData = await response.json();
+        console.error('❌ Gmail REST API Error:', errorData);
+        throw new BadRequestException('Failed to dispatch password reset email via Gmail API.');
+      }
+    } catch (mailError: any) {
+      console.error('🚨 Gmail API Forgot Password Error:', mailError?.message || mailError);
       throw new BadRequestException('Failed to dispatch email. Please check server credentials.');
     }
   }
+
+
 
   // 4️⃣ RESET PASSWORD (Update Password in DB)
   async resetPassword(dto: { userId: string; newPassword: string }) {
@@ -359,85 +459,6 @@ async registerDealer(dto: any) {
 
     throw new NotFoundException('Account not found or invalid user ID');
   }
-
-
-
-
-
-
-// // 1️⃣ SEND VERIFICATION EMAIL HELPER (Matched to working forgotPassword structure)
-// private async sendVerificationEmail(userId: string, email: string, name?: string) {
-//   // const verifyUrl = `https://naipickndroplaundrycleaners.velmoragrouphub.com/#/verify-email?userId=${userId}`;
-//   // Replace the Flutter URL with your backend API URL
-//   const verifyUrldynamic = `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/auth/verify-email?userId=${userId}`;
-
-//   // const verifyUrl = `http://localhost:3000/api/auth/verify-email?userId=${userId}`;
-//   const verifyUrl = `https://pickndropdrycleaners-backend.onrender.com/api/auth/verify-email?userId=${userId}`;
-  
-
-//   console.log("Here is the Verify URL ", verifyUrldynamic);
-
-//   console.log(`Here are the deatils to use "      
-//       \nuser: ${process.env.GMAIL_USER},
-//       \nclientId: ${process.env.GMAIL_CLIENT_ID},
-//       \nclientSecret: ${process.env.GMAIL_CLIENT_SECRET},
-//       \nrefreshToken: ${process.env.GMAIL_REFRESH_TOKEN},"
-//     `)
-
-
-//   const transporter = nodemailer.createTransport({
-//     service: 'gmail', // 👈 Simplifies host, port, and secure options
-    
-
-//     lookup: (
-//       hostname: string,
-//       options: dns.LookupOptions,
-//       callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void
-//       ) => {
-//       dns.lookup(hostname, { family: 4 }, callback);
-//     },
-//     auth: {
-//       type: 'OAuth2',
-//       user: process.env.GMAIL_USER,
-//       clientId: process.env.GMAIL_CLIENT_ID,
-//       clientSecret: process.env.GMAIL_CLIENT_SECRET,
-//       refreshToken: process.env.GMAIL_REFRESH_TOKEN,
-//     },
-//     connectionTimeout: 10000,
-//     socketTimeout: 10000,
-//   // } as any);
-
-
-//    } as nodemailer.TransportOptions);
-
-
-
-//   try {
-//     const info = await transporter.sendMail({
-//       from: `"NaipickNdroplaundrycleaners" <${process.env.GMAIL_USER}>`,
-//       to: email,
-//       subject: '✉️ Verify Your Email - NaiPick & Drop',
-//       html: `
-//         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 500px; margin: auto; border: 1px solid #eee; border-radius: 10px;">
-//           <h2 style="color: #99326c; text-align: center;">Pick & Drop Laundry</h2>
-//           <hr style="border: none; border-top: 1px solid #eee;" />
-//           <p>Hello <b>${name || 'Valued Customer'}</b>,</p>
-//           <p>Thank you for signing up! Please confirm your email address to activate your account.</p>
-//           <div style="text-align: center; margin: 30px 0;">
-//             <a href="${verifyUrl}" style="background-color: #99326c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Verify Email Address</a>
-//           </div>
-//         </div>
-//       `,
-//     });
-
-//     console.log(`✅ Verification email dispatched successfully to ${email} (Message ID: ${info.messageId})`);
-//     return info;
-//   } catch (mailError) {
-//     // 🚨 Log the exact error just like forgotPassword does so terminal isn't silent!
-//     console.error('Nodemailer / OAuth2 Verification Email Error:', mailError);
-//     throw new BadRequestException('Failed to dispatch verification email. Please check server credentials.');
-//   }
-// }
 
 
 
