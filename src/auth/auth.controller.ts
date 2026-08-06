@@ -31,6 +31,13 @@ export class AuthController {
     return this.authService.forgotPassword(email);
   }
 
+  // 🎯 ADD THIS MISSING ENDPOINT:
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() dto: { userId: string; newPassword: string }) {
+    return this.authService.resetPassword(dto);
+  }
+
   // 🆕 Add the HTTP PUT gateway here!
   @Put('profile/:id')
   @HttpCode(HttpStatus.OK)
