@@ -5,6 +5,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt'; 
 import * as nodemailer from 'nodemailer';
 
+
+// import { google } from 'googleapis';
+import { OAuth2Client } from 'google-auth-library';
+
 import dns from 'node:dns';// Force Node to prioritize IPv4 over IPv6 globally
 dns.setDefaultResultOrder('ipv4first'); 
 
@@ -439,55 +443,88 @@ async registerDealer(dto: any) {
 
 
 
+// ... inside AuthService ...
 
-// ... inside AuthService class ...
-
-// 2️⃣ SEND VERIFICATION EMAIL HELPER
 private async sendVerificationEmail(userId: string, email: string, name?: string) {
-  // Dynamically resolve base URL based on environment (defaults to production if set, or local dev)
   const baseUrl = process.env.BACKEND_URL || 'https://pickndropdrycleaners-backend.onrender.com';
   const verifyUrl = `${baseUrl}/api/auth/verify-email?userId=${userId}`;
 
   console.log('🔗 Generated Verification URL:', verifyUrl);
-  console.log(`📧 Dispatching OAuth2 Email via ${process.env.GMAIL_USER}`);
-
-  // Configure Nodemailer with IPv4 force override to fix Render ENETUNREACH errors
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    lookup: ipv4Lookup,
-    auth: {
-      type: 'OAuth2',
-      user: process.env.GMAIL_USER,
-      clientId: process.env.GMAIL_CLIENT_ID,
-      clientSecret: process.env.GMAIL_CLIENT_SECRET,
-      refreshToken: process.env.GMAIL_REFRESH_TOKEN,
-    },
-    connectionTimeout: 15000,
-    socketTimeout: 15000,
-  } as nodemailer.TransportOptions);
 
   try {
-    const info = await transporter.sendMail({
-      from: `"NaiPick & Drop Laundry" <${process.env.GMAIL_USER}>`,
-      to: email,
-      subject: '✉️ Verify Your Email - NaiPick & Drop',
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 500px; margin: auto; border: 1px solid #eee; border-radius: 10px;">
-          <h2 style="color: #99326c; text-align: center;">Pick & Drop Laundry</h2>
-          <hr style="border: none; border-top: 1px solid #eee;" />
-          <p>Hello <b>${name || 'Valued Customer'}</b>,</p>
-          <p>Thank you for signing up! Please confirm your email address to activate your account.</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${verifyUrl}" style="background-color: #99326c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Verify Email Address</a>
-          </div>
-        </div>
-      `,
+    // 1. Initialize Google OAuth2 Client
+    const oauth2Client = new OAuth2Client(
+      process.env.GMAIL_CLIENT_ID,
+      process.env.GMAIL_CLIENT_SECRET,
+    );
+
+    oauth2Client.setCredentials({
+      refresh_token: process.env.GMAIL_REFRESH_TOKEN,
     });
 
-    console.log(`✅ Verification email dispatched successfully to ${email} (Message ID: ${info.messageId})`);
-    return info;
-  } catch (mailError) {
-    console.error('🚨 Nodemailer / OAuth2 Verification Email Error:', mailError);
+    // 2. Fetch fresh access token via HTTPS
+    const { token } = await oauth2Client.getAccessToken();
+    if (!token) {
+      throw new Error('Failed to retrieve OAuth2 access token from Google.');
+    }
+
+    // 3. Construct raw RFC 2822 email message
+    const subject = '✉️ Verify Your Email - NaiPick & Drop';
+    const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
+
+    const messageParts = [
+      `To: ${email}`,
+      `From: NaiPick & Drop Laundry <${process.env.GMAIL_USER}>`,
+      `Subject: ${utf8Subject}`,
+      'Content-Type: text/html; charset=utf-8',
+      'MIME-Version: 1.0',
+      '',
+      `
+      <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 500px; margin: auto; border: 1px solid #eee; border-radius: 10px;">
+        <h2 style="color: #99326c; text-align: center;">Pick & Drop Laundry</h2>
+        <hr style="border: none; border-top: 1px solid #eee;" />
+        <p>Hello <b>${name || 'Valued Customer'}</b>,</p>
+        <p>Thank you for signing up! Please confirm your email address to activate your account.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${verifyUrl}" style="background-color: #99326c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Verify Email Address</a>
+        </div>
+      </div>
+      `,
+    ];
+
+    const message = messageParts.join('\n');
+    
+    // Base64Url encode the message (RFC 4648 format required by Gmail API)
+    const encodedMessage = Buffer.from(message)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    // 4. Send email via HTTPS POST (Port 443)
+    const response = await fetch(
+      'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ raw: encodedMessage }),
+      },
+    );
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log(`✅ Verification email dispatched successfully via Gmail REST API! (ID: ${result.id})`);
+      return result;
+    } else {
+      const errorData = await response.json();
+      console.error('❌ Gmail REST API Error:', errorData);
+      throw new BadRequestException('Failed to dispatch verification email via Gmail API.');
+    }
+  } catch (mailError: any) {
+    console.error('🚨 Gmail API Verification Email Error:', mailError?.message || mailError);
     throw new BadRequestException('Failed to dispatch verification email. Please check server credentials.');
   }
 }
